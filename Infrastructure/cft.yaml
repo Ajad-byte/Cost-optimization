@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "EC2 Idle Detection with Lambda and EventBridge"
+
+Parameters:
+  LambdaFunctionName:
+    Type: String
+    Default: "ec2-idle-detection"
+    Description: "Name of the Lambda function"
+
+  ScheduleExpression:
+    Type: String
+    Default: "rate(5 minutes)"
+    Description: "Schedule for Lambda execution"
+
+Resources:
+
+  # NOTE: This stack does not create the Lambda function. Provide the name of an
+  # existing Lambda using the `LambdaFunctionName` parameter. The EventBridge rule
+  # below will target that function ARN and a permission resource allows EventBridge
+  # to invoke it.
+
+  # EventBridge Rule
+  IdleDetectionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: "IdleEC2DetectionSchedule"
+      Description: "Triggers the EC2 idle detection Lambda periodically"
+      ScheduleExpression: !Ref ScheduleExpression
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaFunctionName}"
+          Id: "detect-idle-ec2"
+
+  # Lambda Permission for EventBridge
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaFunctionName
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt IdleDetectionRule.Arn
+
+Outputs:
+  LambdaFunctionName:
+    Description: "Name of the Lambda function"
+    Value: !Ref LambdaFunctionName
+
+  EventBridgeRule:
+    Description: "EventBridge rule ARN"
+    Value: !GetAtt IdleDetectionRule.Arn
